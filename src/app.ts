@@ -468,16 +468,7 @@ suggestionsDropdown.addEventListener("click", (e) => {
   if (item) {
     const index = parseInt(item.dataset.index!);
     selectSuggestion(index);
-
-    // Blur the editor to dismiss keyboard on mobile
-    editor.commands.blur();
-
-    // Small delay to ensure keyboard dismisses before sending
-    setTimeout(() => {
-      handleSend();
-      // Refocus after a moment for desktop users
-      setTimeout(() => editor.commands.focus(), 100);
-    }, 50);
+    handleSend();
   }
 });
 
