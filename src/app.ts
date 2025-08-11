@@ -15,6 +15,7 @@ interface SuggestionItem {
 
 interface HistoryData {
   [url: string]: {
+    title?: string;
     visits: number;
     bookmarked: boolean;
     lastVisitTime: string;
@@ -68,7 +69,7 @@ function getTitleFromUrl(url: string): string {
 async function loadHistoryData() {
   try {
     const response = await fetch("/theo.json");
-    historyData = await response.json();
+    historyData = (await response.json()) as HistoryData;
 
     // Process the data into suggestions
     processedSuggestions = Object.entries(historyData)
@@ -93,7 +94,7 @@ async function loadHistoryData() {
 }
 
 // Load data on startup
-loadHistoryData();
+void loadHistoryData();
 
 const toastContainer = document.getElementById(
   "toast-container",
@@ -132,7 +133,7 @@ const editor = new Editor({
     attributes: {
       class: "prose prose-sm focus:outline-none",
     },
-    handleKeyDown: (view, event) => {
+    handleKeyDown: (_view, event) => {
       // Handle arrow keys for suggestions FIRST
       if (suggestionsDropdown.classList.contains("active")) {
         if (event.key === "ArrowDown") {
@@ -210,9 +211,8 @@ editor.on("update", () => {
   }): boolean => {
     if (node.type === "hardBreak") return true;
     if (node.content && Array.isArray(node.content)) {
-      return node.content.some(
-        (child: { type?: string; content?: unknown[] }) =>
-          checkForBreaks(child),
+      return node.content.some((child) =>
+        checkForBreaks(child as { type?: string; content?: unknown[] }),
       );
     }
     return false;
@@ -520,9 +520,8 @@ editor.on("focus", () => {
   }): boolean => {
     if (node.type === "hardBreak") return true;
     if (node.content && Array.isArray(node.content)) {
-      return node.content.some(
-        (child: { type?: string; content?: unknown[] }) =>
-          checkForBreaks(child),
+      return node.content.some((child) =>
+        checkForBreaks(child as { type?: string; content?: unknown[] }),
       );
     }
     return false;

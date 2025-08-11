@@ -415,6 +415,26 @@ body {
   .container {
     max-width: 100%;
   }
+
+  .toast-container {
+    top: auto;
+    bottom: 20px;
+  }
+
+  .toast-item {
+    animation: toastSlideInMobile 0.3s ease-out;
+  }
+
+  @keyframes toastSlideInMobile {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }
 
 /* Hide horizontal scrollbar but keep vertical for Chrome, Safari and Opera */
