@@ -2,6 +2,7 @@ import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
+import theoData from "../public/theo.json" with { type: "json" };
 
 interface SuggestionItem {
   title: string;
@@ -22,7 +23,7 @@ interface HistoryData {
   };
 }
 
-let historyData: HistoryData = {};
+const historyData = theoData as HistoryData;
 let processedSuggestions: SuggestionItem[] = [];
 
 // Function to get favicon URL
@@ -65,36 +66,28 @@ function getTitleFromUrl(url: string): string {
   }
 }
 
-// Load history data
-async function loadHistoryData() {
-  try {
-    const response = await fetch("/theo.json");
-    historyData = (await response.json()) as HistoryData;
-
-    // Process the data into suggestions
-    processedSuggestions = Object.entries(historyData)
-      .map(([url, data]) => ({
-        title: data.title || getTitleFromUrl(url),
-        url,
-        type: data.bookmarked ? ("bookmark" as const) : ("history" as const),
-        faviconUrl: getFaviconUrl(url),
-        visits: data.visits,
-        lastVisitTime: data.lastVisitTime,
-      }))
-      .sort((a, b) => {
-        // Sort by visits first, then by last visit time
-        if (b.visits !== a.visits) {
-          return (b.visits || 0) - (a.visits || 0);
-        }
-        return (b.lastVisitTime || "").localeCompare(a.lastVisitTime || "");
-      });
-  } catch (error) {
-    console.error("Failed to load history data:", error);
-  }
+// Process the imported data into suggestions
+function initializeSuggestions() {
+  processedSuggestions = Object.entries(historyData)
+    .map(([url, data]) => ({
+      title: data.title || getTitleFromUrl(url),
+      url,
+      type: data.bookmarked ? ("bookmark" as const) : ("history" as const),
+      faviconUrl: getFaviconUrl(url),
+      visits: data.visits,
+      lastVisitTime: data.lastVisitTime,
+    }))
+    .sort((a, b) => {
+      // Sort by visits first, then by last visit time
+      if (b.visits !== a.visits) {
+        return (b.visits || 0) - (a.visits || 0);
+      }
+      return (b.lastVisitTime || "").localeCompare(a.lastVisitTime || "");
+    });
 }
 
-// Load data on startup
-void loadHistoryData();
+// Initialize suggestions on startup
+initializeSuggestions();
 
 const toastContainer = document.getElementById(
   "toast-container",
