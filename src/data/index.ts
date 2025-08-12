@@ -85,3 +85,17 @@ export function processHistoryData(): SuggestionItem[] {
       return (b.lastVisitTime || "").localeCompare(a.lastVisitTime || "");
     });
 }
+
+// Get recent history items (max 20)
+export function getRecentHistory(): SuggestionItem[] {
+  return processHistoryData()
+    .filter((item) => item.type === "history")
+    .slice(0, 20);
+}
+
+// Get bookmarked items
+export function getBookmarks(): SuggestionItem[] {
+  return processHistoryData()
+    .filter((item) => item.type === "bookmark")
+    .slice(0, 20);
+}

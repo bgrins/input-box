@@ -1,9 +1,12 @@
-import type { TabItem } from "../types";
+import type { TabItem, SuggestionItem } from "../types";
 import { getFaviconUrl } from "../data";
+
+// Type that can be used as a pill
+type PillItem = TabItem | SuggestionItem;
 
 export class PillManager {
   private container: HTMLElement;
-  private pills: Map<string, TabItem> = new Map();
+  private pills: Map<string, PillItem> = new Map();
   private onRemove?: (id: string) => void;
 
   constructor(containerId: string) {
@@ -18,11 +21,14 @@ export class PillManager {
     this.onRemove = callback;
   }
 
-  addPill(item: TabItem) {
-    if (this.pills.has(item.id)) return;
+  addPill(item: PillItem) {
+    // Generate ID for SuggestionItem if it doesn't have one
+    const id = "id" in item ? item.id : `${item.type}-${item.url}`;
 
-    this.pills.set(item.id, item);
-    const pill = this.createPillElement(item);
+    if (this.pills.has(id)) return;
+
+    this.pills.set(id, item);
+    const pill = this.createPillElement(item, id);
     this.container.appendChild(pill);
 
     // Show container if it was hidden
@@ -44,10 +50,10 @@ export class PillManager {
     }
   }
 
-  private createPillElement(item: TabItem): HTMLElement {
+  private createPillElement(item: PillItem, id: string): HTMLElement {
     const pill = document.createElement("div");
     pill.className = "tab-pill";
-    pill.dataset.pillId = item.id;
+    pill.dataset.pillId = id;
 
     // Favicon
     const favicon = document.createElement("img");
@@ -80,7 +86,7 @@ export class PillManager {
       const allCloseButtons = this.container.querySelectorAll(".pill-remove");
       const currentIndex = Array.from(allCloseButtons).indexOf(removeBtn);
 
-      this.removePill(item.id);
+      this.removePill(id);
 
       // If the close button was focused (via keyboard), manage focus after removal
       if (wasFocused) {
@@ -123,7 +129,7 @@ export class PillManager {
     this.container.style.display = "none";
   }
 
-  getPills(): TabItem[] {
+  getPills(): PillItem[] {
     return Array.from(this.pills.values());
   }
 

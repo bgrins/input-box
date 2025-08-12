@@ -73,8 +73,11 @@ test.describe("Input box functionality", () => {
     // Type @tabs
     await editor.type("@tabs");
 
-    // Wait for tabs menu
-    await page.waitForTimeout(100);
+    // Wait for tabs menu to appear
+    await expect(page.locator(".command-menu")).toBeVisible();
+
+    // Wait for checkboxes to be present
+    await expect(page.locator(".command-checkbox").first()).toBeVisible();
 
     // Click first checkbox
     const firstCheckbox = page.locator(".command-checkbox").first();
@@ -82,6 +85,7 @@ test.describe("Input box functionality", () => {
 
     // Click apply button
     const applyButton = page.locator(".command-apply-btn");
+    await expect(applyButton).toBeVisible();
     await applyButton.click();
 
     // Check that pill was added

@@ -7,7 +7,7 @@ import { PillManager } from "./ui/pills";
 import { CommandMenu } from "./ui/command-menu";
 import { SettingsManager } from "./ui/settings";
 import { processHistoryData, getFaviconUrl, switchProfile } from "./data";
-import type { SuggestionItem } from "./types";
+import type { SuggestionItem, TabItem } from "./types";
 
 // Initialize data
 let processedSuggestions = processHistoryData();
@@ -197,8 +197,40 @@ commandMenu.setOnSelect((command, data) => {
     }
 
     // Note: CommandMenu will handle showing itself and getting existing pills
+  } else if (command === "complete-history") {
+    // Complete the text to @history when opening history menu
+    const { from } = editor.state.selection;
+    const text = editor.state.doc.textBetween(Math.max(0, from - 10), from);
+    const atMatch = text.match(/@(\w*)$/);
+
+    if (atMatch && atMatch[1] !== "history") {
+      // Complete to @history
+      const deleteLength = atMatch[1].length;
+      editor
+        .chain()
+        .focus()
+        .deleteRange({ from: from - deleteLength, to: from })
+        .insertContent("history")
+        .run();
+    }
+  } else if (command === "complete-bookmarks") {
+    // Complete the text to @bookmarks when opening bookmarks menu
+    const { from } = editor.state.selection;
+    const text = editor.state.doc.textBetween(Math.max(0, from - 10), from);
+    const atMatch = text.match(/@(\w*)$/);
+
+    if (atMatch && atMatch[1] !== "bookmarks") {
+      // Complete to @bookmarks
+      const deleteLength = atMatch[1].length;
+      editor
+        .chain()
+        .focus()
+        .deleteRange({ from: from - deleteLength, to: from })
+        .insertContent("bookmarks")
+        .run();
+    }
   } else if (command === "tabs" && data) {
-    const tab = data;
+    const tab = data as TabItem;
     pillManager.addPill(tab);
 
     // Clear the @tabs text from editor
@@ -212,26 +244,62 @@ commandMenu.setOnSelect((command, data) => {
 
     isCommandMode = false;
     suggestionsDropdown.classList.remove("blurred");
+  } else if ((command === "history" || command === "bookmarks") && data) {
+    // Add history/bookmark item as a pill
+    const item = data as SuggestionItem;
+    pillManager.addPill(item);
+
+    // Clear the @history or @bookmarks text from editor
+    const { from } = editor.state.selection;
+    const text = editor.state.doc.textBetween(Math.max(0, from - 15), from);
+    const atMatch = text.match(/@(\w*)$/);
+
+    if (atMatch) {
+      // Delete the @history or @bookmarks text
+      const deleteLength = atMatch[0].length;
+      editor
+        .chain()
+        .focus()
+        .deleteRange({ from: from - deleteLength, to: from })
+        .run();
+    }
+
+    isCommandMode = false;
+    suggestionsDropdown.classList.remove("blurred");
   }
 });
 
 // Set up apply handler for multiple selection
-commandMenu.setOnApply((command, tabs) => {
-  if (command === "tabs" && tabs.length > 0) {
-    // Add all selected tabs as pills
-    tabs.forEach((tab) => {
-      // Check if pill already exists before adding
-      if (!pillManager.hasPill(tab.id)) {
-        pillManager.addPill(tab);
+commandMenu.setOnApply((command, items, toRemove) => {
+  // Remove unchecked pills
+  if (toRemove && toRemove.length > 0) {
+    toRemove.forEach((id) => {
+      pillManager.removePill(id);
+    });
+  }
+
+  // Add selected items as pills
+  if (items.length > 0) {
+    items.forEach((item) => {
+      // For tabs, check if pill already exists
+      if ("id" in item && !pillManager.hasPill(item.id)) {
+        pillManager.addPill(item);
+      } else if (!("id" in item)) {
+        // For history/bookmarks, always add (they don't have stable IDs)
+        pillManager.addPill(item);
       }
     });
+  }
 
-    // Clear the @tabs text
+  // Clear the command text from editor only if we actually made changes
+  if (items.length > 0 || (toRemove && toRemove.length > 0)) {
     const { from } = editor.state.selection;
-    const text = editor.state.doc.textBetween(Math.max(0, from - 6), from);
+    const text = editor.state.doc.textBetween(Math.max(0, from - 15), from);
+    const commandPattern = `@${command}`;
 
-    if (text.includes("@tabs")) {
-      const startPos = from - text.lastIndexOf("@tabs") - 5;
+    if (text.includes(commandPattern)) {
+      const startPos =
+        from - text.lastIndexOf(commandPattern) - commandPattern.length;
       editor.chain().focus().deleteRange({ from: startPos, to: from }).run();
     }
 
@@ -261,22 +329,28 @@ editor.on("update", ({ editor }) => {
 
     if (query === "") {
       // Just typed @, show command menu
-      commandMenu.show();
+      commandMenu.show(null, [], "");
     } else if (query === "tabs") {
       // Show tabs menu when @tabs is fully typed
-      const existingPillIds = pillManager.getPills().map((p) => p.id);
+      const existingPillIds = pillManager
+        .getPills()
+        .filter((p): p is TabItem => "id" in p)
+        .map((p) => p.id);
       commandMenu.show("tabs", existingPillIds);
     } else if (query === "history") {
       // Show history menu when @history is fully typed
-      commandMenu.show();
+      commandMenu.show("history");
     } else if (query === "bookmarks") {
       // Show bookmarks menu when @bookmarks is fully typed
-      commandMenu.show();
+      commandMenu.show("bookmarks");
     } else {
-      // Keep command menu open while typing
-      // but don't auto-complete anything
-      if (commandMenu.currentCommand !== "tabs") {
-        commandMenu.show();
+      // Keep command menu open while typing with filtering
+      if (
+        commandMenu.currentCommand !== "tabs" &&
+        commandMenu.currentCommand !== "history" &&
+        commandMenu.currentCommand !== "bookmarks"
+      ) {
+        commandMenu.show(null, [], query);
       }
     }
 

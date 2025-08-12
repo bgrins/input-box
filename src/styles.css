@@ -522,7 +522,21 @@ body {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   padding: 8px;
   min-width: 200px;
+  max-width: 400px;
   z-index: 1001;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.command-menu-items {
+  overflow-y: auto;
+  max-height: 250px;
+}
+
+/* Show max 6 items before scrolling */
+.command-menu-items:has(.command-item:nth-child(7)) {
+  max-height: calc(6 * 44px); /* Approximate height of 6 items */
 }
 
 .command-item {
