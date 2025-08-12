@@ -2,15 +2,93 @@ import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
-import { PillManager } from "./ui/pills";
-import { CommandMenu } from "./ui/command-menu";
-import { processHistoryData, getFaviconUrl } from "./data";
-import type { SuggestionItem } from "./types";
+import profilesData from "../public/profiles.json" with { type: "json" };
 
-// Initialize data
-const processedSuggestions = processHistoryData();
+interface SuggestionItem {
+  title: string;
+  url: string | null;
+  type: "history" | "bookmark" | "search" | "command" | "navigate";
+  icon?: string;
+  faviconUrl?: string;
+  visits?: number;
+  lastVisitTime?: string;
+}
 
-// Initialize UI components
+interface HistoryData {
+  [url: string]: {
+    title?: string;
+    visits: number;
+    bookmarked: boolean;
+    lastVisitTime: string;
+  };
+}
+
+const historyData = profilesData.theo as HistoryData;
+let processedSuggestions: SuggestionItem[] = [];
+
+// Function to get favicon URL
+function getFaviconUrl(url: string, size: number = 32): string {
+  try {
+    const urlObj = new URL(url);
+    const domain = urlObj.hostname;
+    return `https://www.google.com/s2/favicons?domain=${domain}&sz=${size}`;
+  } catch {
+    return "";
+  }
+}
+
+// Function to get title from URL
+function getTitleFromUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    let title = urlObj.hostname.replace("www.", "");
+
+    // Add path context if it's a search
+    if (url.includes("search?")) {
+      const params = new URLSearchParams(urlObj.search);
+      const query = params.get("q");
+      if (query) {
+        return `Search: ${query}`;
+      }
+    }
+
+    // Add path context for specific pages
+    if (urlObj.pathname && urlObj.pathname !== "/") {
+      const pathParts = urlObj.pathname.split("/").filter((p) => p);
+      if (pathParts.length > 0) {
+        title += ` - ${pathParts[0].replace(/-/g, " ")}`;
+      }
+    }
+
+    return title.charAt(0).toUpperCase() + title.slice(1);
+  } catch {
+    return url;
+  }
+}
+
+// Process the imported data into suggestions
+function initializeSuggestions() {
+  processedSuggestions = Object.entries(historyData)
+    .map(([url, data]) => ({
+      title: data.title || getTitleFromUrl(url),
+      url,
+      type: data.bookmarked ? ("bookmark" as const) : ("history" as const),
+      faviconUrl: getFaviconUrl(url),
+      visits: data.visits,
+      lastVisitTime: data.lastVisitTime,
+    }))
+    .sort((a, b) => {
+      // Sort by visits first, then by last visit time
+      if (b.visits !== a.visits) {
+        return (b.visits || 0) - (a.visits || 0);
+      }
+      return (b.lastVisitTime || "").localeCompare(a.lastVisitTime || "");
+    });
+}
+
+// Initialize suggestions on startup
+initializeSuggestions();
+
 const toastContainer = document.getElementById(
   "toast-container",
 ) as HTMLDivElement;
@@ -21,16 +99,10 @@ const sendButton = document.getElementById("send-btn") as HTMLButtonElement;
 const charCount = document.getElementById("char-count") as HTMLSpanElement;
 const devButton = document.getElementById("dev-btn") as HTMLButtonElement;
 
-// Initialize pill manager
-const pillManager = new PillManager("pills-container");
-
-// State
 let currentSuggestions: SuggestionItem[] = [];
 let selectedIndex = -1;
 let lastQuery = "";
 let selectedUrl: string | null = null;
-let devMode = false;
-let isCommandMode = false;
 
 // Initialize TipTap editor
 const editor = new Editor({
@@ -42,7 +114,7 @@ const editor = new Editor({
       },
     }),
     Placeholder.configure({
-      placeholder: "Type @ for commands, or search...",
+      placeholder: "Search or type a URL...",
     }),
     Link.configure({
       openOnClick: false,
@@ -55,24 +127,7 @@ const editor = new Editor({
       class: "prose prose-sm focus:outline-none",
     },
     handleKeyDown: (_view, event) => {
-      // Let command menu handle keys first
-      if (commandMenu.handleKeyDown(event)) {
-        return true;
-      }
-
-      // Don't show URL suggestions in command mode
-      if (isCommandMode) {
-        if (event.key === "Escape") {
-          isCommandMode = false;
-          commandMenu.hide();
-          suggestionsDropdown.classList.remove("blurred");
-          return true;
-        }
-        // Don't interfere with backspace - let it work normally
-        return false;
-      }
-
-      // Handle arrow keys for URL suggestions
+      // Handle arrow keys for suggestions FIRST
       if (suggestionsDropdown.classList.contains("active")) {
         if (event.key === "ArrowDown") {
           event.preventDefault();
@@ -100,9 +155,11 @@ const editor = new Editor({
         }
       }
 
-      // Handle Enter key
+      // Handle Enter key - if a suggestion is selected, use it
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
+
+        // If a suggestion is selected, select it and send
         if (
           suggestionsDropdown.classList.contains("active") &&
           selectedIndex >= 0
@@ -117,6 +174,7 @@ const editor = new Editor({
 
       // Handle Shift+Enter for new line
       if (event.key === "Enter" && event.shiftKey) {
+        // Let TipTap handle this naturally
         return false;
       }
 
@@ -125,129 +183,21 @@ const editor = new Editor({
   },
 });
 
-// Initialize command menu
-const commandMenu = new CommandMenu(editor);
-
-// Set up command selection handler (for single selection - not used with checkboxes)
-commandMenu.setOnSelect((command, data) => {
-  if (command === "complete-tabs") {
-    // Complete the text to @tabs when opening tabs menu
-    const { from } = editor.state.selection;
-    const text = editor.state.doc.textBetween(Math.max(0, from - 10), from);
-    const atMatch = text.match(/@(\w*)$/);
-
-    if (atMatch && atMatch[1] !== "tabs") {
-      // Complete to @tabs
-      const deleteLength = atMatch[1].length;
-      editor
-        .chain()
-        .focus()
-        .deleteRange({ from: from - deleteLength, to: from })
-        .insertContent("tabs")
-        .run();
-    }
-
-    // Note: CommandMenu will handle showing itself and getting existing pills
-  } else if (command === "tabs" && data) {
-    const tab = data;
-    pillManager.addPill(tab);
-
-    // Clear the @tabs text from editor
-    const { from } = editor.state.selection;
-    const text = editor.state.doc.textBetween(Math.max(0, from - 6), from);
-
-    if (text.includes("@tabs")) {
-      const startPos = from - text.lastIndexOf("@tabs") - 5;
-      editor.chain().focus().deleteRange({ from: startPos, to: from }).run();
-    }
-
-    isCommandMode = false;
-    suggestionsDropdown.classList.remove("blurred");
-  }
-});
-
-// Set up apply handler for multiple selection
-commandMenu.setOnApply((command, tabs) => {
-  if (command === "tabs" && tabs.length > 0) {
-    // Add all selected tabs as pills
-    tabs.forEach((tab) => {
-      // Check if pill already exists before adding
-      if (!pillManager.hasPill(tab.id)) {
-        pillManager.addPill(tab);
-      }
-    });
-
-    // Clear the @tabs text
-    const { from } = editor.state.selection;
-    const text = editor.state.doc.textBetween(Math.max(0, from - 6), from);
-
-    if (text.includes("@tabs")) {
-      const startPos = from - text.lastIndexOf("@tabs") - 5;
-      editor.chain().focus().deleteRange({ from: startPos, to: from }).run();
-    }
-
-    isCommandMode = false;
-    suggestionsDropdown.classList.remove("blurred");
-  }
-});
-
 // Handle input changes
-editor.on("update", ({ editor }) => {
+editor.on("update", () => {
   const text = editor.getText().trim();
-  const { from } = editor.state.selection;
 
   // Update character count
   charCount.textContent = text.length.toString();
 
-  // Check for @ command
-  const textBeforeCursor = editor.state.doc.textBetween(
-    Math.max(0, from - 10),
-    from,
-  );
-  const atMatch = textBeforeCursor.match(/@(\w*)$/);
-
-  if (atMatch) {
-    isCommandMode = true;
-    const query = atMatch[1].toLowerCase();
-
-    if (query === "") {
-      // Just typed @, show command menu
-      commandMenu.show();
-    } else if (query === "tabs") {
-      // Show tabs menu when @tabs is fully typed
-      const existingPillIds = pillManager.getPills().map((p) => p.id);
-      commandMenu.show("tabs", existingPillIds);
-    } else if (query === "history") {
-      // Show history menu when @history is fully typed
-      commandMenu.show();
-    } else if (query === "bookmarks") {
-      // Show bookmarks menu when @bookmarks is fully typed
-      commandMenu.show();
-    } else {
-      // Keep command menu open while typing
-      // but don't auto-complete anything
-      if (commandMenu.currentCommand !== "tabs") {
-        commandMenu.show();
-      }
-    }
-
-    // Don't hide suggestions, just blur them
-    suggestionsDropdown.classList.add("blurred");
-    return;
-  } else {
-    commandMenu.hide();
-    isCommandMode = false;
-    // Remove blur from suggestions
-    suggestionsDropdown.classList.remove("blurred");
-  }
-
-  // Clear selected URL when user types
+  // Clear selected URL when user types (modifies the content)
   selectedUrl = null;
 
-  // Check if content has line breaks (multiline)
+  // Check if content has line breaks (multiline) using TipTap's JSON structure
   const json = editor.getJSON();
   let hasLineBreaks = false;
 
+  // Check if there are hard breaks in the content
   const checkForBreaks = (node: {
     type?: string;
     content?: unknown[];
@@ -261,6 +211,7 @@ editor.on("update", ({ editor }) => {
     return false;
   };
 
+  // Check for multiple paragraphs or hard breaks within content
   if (json.content && json.content.length > 1) {
     hasLineBreaks = true;
   } else if (json.content && json.content[0]) {
@@ -277,7 +228,7 @@ editor.on("update", ({ editor }) => {
   // Hide suggestions when in multiline mode
   if (hasLineBreaks) {
     hideSuggestions();
-  } else if (text !== lastQuery && !isCommandMode) {
+  } else if (text !== lastQuery) {
     lastQuery = text;
     if (text) {
       currentSuggestions = filterSuggestions(text);
@@ -292,7 +243,6 @@ editor.on("update", ({ editor }) => {
   }
 });
 
-// URL detection function
 function isURL(str: string): boolean {
   try {
     const pattern =
@@ -303,9 +253,9 @@ function isURL(str: string): boolean {
   }
 }
 
-// Filter suggestions
 function filterSuggestions(query: string): SuggestionItem[] {
   if (!query) {
+    // Show top visited sites when empty
     return processedSuggestions.slice(0, 6);
   }
 
@@ -317,7 +267,7 @@ function filterSuggestions(query: string): SuggestionItem[] {
     return titleMatch || urlMatch;
   });
 
-  // Add direct navigation option
+  // Add direct navigation option if it looks like a URL
   if (isURL(query) || query.includes(".")) {
     filtered.unshift({
       title: query,
@@ -329,7 +279,7 @@ function filterSuggestions(query: string): SuggestionItem[] {
     });
   }
 
-  // Add search option
+  // Add search option if no perfect URL match
   if (!isURL(query)) {
     filtered.push({
       title: `Search for "${query}"`,
@@ -342,7 +292,6 @@ function filterSuggestions(query: string): SuggestionItem[] {
   return filtered.slice(0, 8);
 }
 
-// Render suggestions
 function renderSuggestions(): void {
   if (currentSuggestions.length === 0) {
     hideSuggestions();
@@ -351,6 +300,7 @@ function renderSuggestions(): void {
 
   suggestionsDropdown.innerHTML = currentSuggestions
     .map((item, index) => {
+      // Use favicon if available, otherwise fall back to icon or default
       const iconContent = item.faviconUrl
         ? `<img src="${item.faviconUrl}" alt="" class="suggestion-favicon" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><span class="suggestion-icon" style="display:none;">${item.icon || "🌐"}</span>`
         : `<span class="suggestion-icon">${item.icon || "🌐"}</span>`;
@@ -373,14 +323,12 @@ function renderSuggestions(): void {
   suggestionsDropdown.classList.add("active");
 }
 
-// Hide suggestions
 function hideSuggestions(): void {
   suggestionsDropdown.classList.remove("active");
   selectedIndex = -1;
   currentSuggestions = [];
 }
 
-// Scroll selected suggestion into view
 function scrollSelectedIntoView(): void {
   if (selectedIndex >= 0) {
     const selectedElement = suggestionsDropdown.querySelector(
@@ -396,15 +344,20 @@ function scrollSelectedIntoView(): void {
   }
 }
 
-// Select suggestion
 function selectSuggestion(index: number): void {
   if (index >= 0 && index < currentSuggestions.length) {
     const suggestion = currentSuggestions[index];
 
+    // For search suggestions, don't change the input text
     if (suggestion.type === "search") {
+      // Don't store URL or change content for search suggestions
+      // Just let the current text be used
       selectedUrl = null;
     } else {
+      // Store the selected URL for the action log
       selectedUrl = suggestion.url;
+
+      // Replace editor content with the suggestion
       if (suggestion.url) {
         editor.commands.setContent(suggestion.url);
       } else {
@@ -417,7 +370,6 @@ function selectSuggestion(index: number): void {
   }
 }
 
-// Show toast notification
 function showToast(text: string): void {
   let actionType = "search";
   let actionText = `Searching for "${text}"...`;
@@ -454,15 +406,19 @@ function showToast(text: string): void {
 
   toastDiv.appendChild(iconDiv);
   toastDiv.appendChild(contentDiv);
+
+  // Add to container
   toastContainer.appendChild(toastDiv);
 
   // Fade out older toasts
   const allToasts = toastContainer.querySelectorAll(".toast-item");
   allToasts.forEach((toast, index) => {
     if (index > 2) {
+      // Remove toasts beyond the third one
       (toast as HTMLElement).classList.add("fade-out");
       setTimeout(() => toast.remove(), 300);
     } else if (index > 0) {
+      // Slightly fade older visible toasts
       (toast as HTMLElement).style.opacity = Math.max(
         0.7,
         1 - index * 0.15,
@@ -470,42 +426,36 @@ function showToast(text: string): void {
     }
   });
 
-  // Auto-remove this toast
+  // Auto-remove this toast after 2.5 seconds
   setTimeout(() => {
     toastDiv.classList.add("fade-out");
     setTimeout(() => toastDiv.remove(), 300);
   }, 2500);
 }
 
-// Handle send
 function handleSend(): void {
   const text = editor.getText().trim();
-  const pills = pillManager.getPills();
 
-  // Don't send if no text and no pills
-  if (!text && pills.length === 0) return;
+  if (!text) return;
 
-  // Include pill information in the toast if pills exist
-  if (pills.length > 0) {
-    const pillInfo = `with ${pills.length} tab${pills.length !== 1 ? "s" : ""}`;
-    const actionText = selectedUrl || text || "Message";
-    showToast(`${actionText} ${pillInfo}`);
-  } else {
-    const actionText = selectedUrl || text;
-    showToast(actionText);
-  }
+  // Use the selected URL if available, otherwise use the typed text
+  const actionText = selectedUrl || text;
 
+  // Show toast notification
+  showToast(actionText);
+
+  // Clear the selected URL for next input
   selectedUrl = null;
 
-  // Clear pills after sending
-  pillManager.clear();
-
+  // Clear the editor
   editor.commands.clearContent();
   hideSuggestions();
+
+  // Focus back on editor
   editor.commands.focus();
 }
 
-// Event listeners
+// Send button click handler
 sendButton.addEventListener("click", () => {
   handleSend();
 });
@@ -522,17 +472,18 @@ suggestionsDropdown.addEventListener("click", (e) => {
   }
 });
 
-// Focus on editor when clicking input container
+// Focus on editor when clicking the input container
 const inputContainer = document.querySelector(".input-container");
 inputContainer?.addEventListener("click", (e) => {
   if ((e.target as HTMLElement).closest(".suggestions-dropdown")) return;
   editor.commands.focus();
 });
 
-// Handle focus on other controls within wrapper
+// Handle focus on other controls within the wrapper
 const inputWrapper = document.querySelector(".input-wrapper");
 inputWrapper?.addEventListener("focusin", (e) => {
   const target = e.target as HTMLElement;
+  // If focus is on a control button but not the editor, keep suggestions if they were visible
   if (
     !target.closest("#editor") &&
     suggestionsDropdown.classList.contains("active")
@@ -542,6 +493,7 @@ inputWrapper?.addEventListener("focusin", (e) => {
 });
 
 // Developer button toggle
+let devMode = false;
 devButton.addEventListener("click", () => {
   devMode = !devMode;
   charCount.style.display = devMode ? "block" : "none";
@@ -551,6 +503,7 @@ devButton.addEventListener("click", () => {
 // Handle focus/blur for suggestions
 editor.on("focus", () => {
   const text = editor.getText().trim();
+  // Show suggestions on focus if there's text and not multiline
   const json = editor.getJSON();
   let hasLineBreaks = false;
 
@@ -573,7 +526,7 @@ editor.on("focus", () => {
     hasLineBreaks = checkForBreaks(json.content[0]);
   }
 
-  if (!hasLineBreaks && text && !isCommandMode) {
+  if (!hasLineBreaks && text) {
     currentSuggestions = filterSuggestions(text);
     if (currentSuggestions.length > 0) {
       renderSuggestions();
@@ -582,11 +535,13 @@ editor.on("focus", () => {
 });
 
 editor.on("blur", () => {
+  // Delay to check where focus went
   setTimeout(() => {
     const activeElement = document.activeElement as HTMLElement;
     const focusInWrapper = activeElement?.closest(".input-wrapper");
     const hoveringOnSuggestions = suggestionsDropdown.matches(":hover");
 
+    // Only hide if focus left the input wrapper entirely
     if (!focusInWrapper && !hoveringOnSuggestions) {
       hideSuggestions();
     }
@@ -598,16 +553,9 @@ document.addEventListener("click", (e) => {
   const target = e.target as HTMLElement;
   const isInputWrapper = target.closest(".input-wrapper");
   const isSuggestion = target.closest(".suggestions-dropdown");
-  const isCommandMenu = target.closest(".command-menu");
 
-  if (!isInputWrapper && !isSuggestion && !isCommandMenu) {
+  if (!isInputWrapper && !isSuggestion) {
     hideSuggestions();
-    commandMenu.hide();
-
-    if (isCommandMode) {
-      isCommandMode = false;
-      suggestionsDropdown.classList.remove("blurred");
-    }
   }
 });
 
