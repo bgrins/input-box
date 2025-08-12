@@ -10,7 +10,7 @@ lerna-debug.log*
 playwright-report/
 .venv
 public/synthetic_profiles.csv
-
+test-results
 
 node_modules
 dist
