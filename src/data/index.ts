@@ -1,7 +1,25 @@
 import profilesData from "../../public/profiles.json" with { type: "json" };
 import type { HistoryData, SuggestionItem, TabItem } from "../types";
 
-export const historyData = profilesData.theo as HistoryData;
+// Load saved profile from localStorage or default to anna
+let currentProfile = localStorage.getItem("selectedProfile") || "anna";
+export let historyData = profilesData[
+  currentProfile as keyof typeof profilesData
+] as HistoryData;
+
+// Function to switch profiles
+export function switchProfile(profileName: string): void {
+  if (profileName in profilesData) {
+    currentProfile = profileName;
+    historyData = profilesData[
+      profileName as keyof typeof profilesData
+    ] as HistoryData;
+  }
+}
+
+export function getCurrentProfile(): string {
+  return currentProfile;
+}
 
 // Mock tabs - using first 5 items from history as tabs
 export function getMockTabs(): TabItem[] {

@@ -71,9 +71,43 @@ export class PillManager {
     const removeBtn = document.createElement("button");
     removeBtn.className = "pill-remove";
     removeBtn.innerHTML = "×";
+    removeBtn.setAttribute("aria-label", `Remove ${item.title}`);
     removeBtn.onclick = (e) => {
       e.stopPropagation();
+
+      // Store the current focus state and index before removal
+      const wasFocused = document.activeElement === removeBtn;
+      const allCloseButtons = this.container.querySelectorAll(".pill-remove");
+      const currentIndex = Array.from(allCloseButtons).indexOf(removeBtn);
+
       this.removePill(item.id);
+
+      // If the close button was focused (via keyboard), manage focus after removal
+      if (wasFocused) {
+        requestAnimationFrame(() => {
+          const remainingButtons =
+            this.container.querySelectorAll(".pill-remove");
+          if (remainingButtons.length > 0) {
+            if (currentIndex < remainingButtons.length) {
+              // Focus the button at the same index (which is now the next pill)
+              (remainingButtons[currentIndex] as HTMLElement).focus();
+            } else {
+              // If we removed the last one, focus the new last button
+              (
+                remainingButtons[remainingButtons.length - 1] as HTMLElement
+              ).focus();
+            }
+          } else {
+            // If no pills remain, focus the editor
+            const editor = document.querySelector(
+              ".ProseMirror",
+            ) as HTMLElement;
+            if (editor) {
+              editor.focus();
+            }
+          }
+        });
+      }
     };
 
     pill.appendChild(favicon);

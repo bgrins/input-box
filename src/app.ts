@@ -1,14 +1,16 @@
+import "./styles.css";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
 import { PillManager } from "./ui/pills";
 import { CommandMenu } from "./ui/command-menu";
-import { processHistoryData, getFaviconUrl } from "./data";
+import { SettingsManager } from "./ui/settings";
+import { processHistoryData, getFaviconUrl, switchProfile } from "./data";
 import type { SuggestionItem } from "./types";
 
 // Initialize data
-const processedSuggestions = processHistoryData();
+let processedSuggestions = processHistoryData();
 
 // Initialize UI components
 const toastContainer = document.getElementById(
@@ -23,6 +25,41 @@ const devButton = document.getElementById("dev-btn") as HTMLButtonElement;
 
 // Initialize pill manager
 const pillManager = new PillManager("pills-container");
+
+// Initialize settings manager
+const settingsManager = new SettingsManager();
+
+// Load the initial profile if it's different from default
+const savedProfile = settingsManager.getCurrentProfile();
+if (savedProfile !== "anna") {
+  switchProfile(savedProfile);
+  processedSuggestions = processHistoryData();
+}
+
+settingsManager.setOnProfileChange((profile) => {
+  // Switch profile data
+  switchProfile(profile);
+
+  // Refresh suggestions with new profile data
+  processedSuggestions = processHistoryData();
+
+  // Clear current suggestions
+  hideSuggestions();
+
+  // Trigger a new search if there's text
+  const text = editor.getText();
+  if (text && !text.startsWith("@")) {
+    lastQuery = text;
+    if (text) {
+      currentSuggestions = filterSuggestions(text);
+      if (currentSuggestions.length > 0) {
+        renderSuggestions();
+      } else {
+        hideSuggestions();
+      }
+    }
+  }
+});
 
 // State
 let currentSuggestions: SuggestionItem[] = [];
@@ -55,6 +92,18 @@ const editor = new Editor({
       class: "prose prose-sm focus:outline-none",
     },
     handleKeyDown: (_view, event) => {
+      // Handle Shift+Tab to focus settings button
+      if (event.key === "Tab" && event.shiftKey) {
+        const settingsButton = document.querySelector(
+          ".settings-button",
+        ) as HTMLElement;
+        if (settingsButton) {
+          event.preventDefault();
+          settingsButton.focus();
+          return true;
+        }
+      }
+
       // Let command menu handle keys first
       if (commandMenu.handleKeyDown(event)) {
         return true;

@@ -12,6 +12,7 @@ body {
   min-height: 100vh;
   padding: 20px;
   overflow-y: auto;
+  position: relative;
 }
 
 .container {
@@ -56,12 +57,26 @@ body {
   padding: 0;
   font-size: 16px;
   line-height: 1.5;
+  min-height: 24px; /* Set initial minimum height */
   max-height: 150px;
   overflow-y: auto;
   border: none;
   outline: none;
   background: transparent;
   resize: none;
+}
+
+/* Initial placeholder before TipTap loads */
+.editor-placeholder {
+  color: #9ca3af;
+  pointer-events: none;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* Hide the placeholder once TipTap is initialized */
+.editor-input:has(.ProseMirror) .editor-placeholder {
+  display: none;
 }
 
 .editor-input .ProseMirror {
@@ -677,4 +692,226 @@ body {
 .suggestions-dropdown.blurred {
   filter: blur(0.8px);
   transition: filter 0.2s;
+}
+
+/* Settings Button */
+.settings-button {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: transparent;
+  backdrop-filter: blur(10px);
+  border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: white;
+  opacity: 0.4;
+  transition: all 0.3s ease;
+  z-index: 1000;
+}
+
+.settings-button.active,
+.settings-button:hover {
+  opacity: 1;
+  transform: rotate(90deg);
+}
+
+.settings-button:focus {
+  opacity: 1;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+}
+
+.settings-button:focus:not(:hover) {
+  transform: rotate(45deg);
+}
+
+.settings-button svg {
+  transition: transform 0.3s ease;
+}
+
+/* Settings Dialog */
+.settings-dialog {
+  position: fixed;
+  margin: auto;
+  padding: 0;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.settings-dialog[open] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-dialog.active {
+  opacity: 1;
+}
+
+.settings-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.settings-modal-content {
+  background: white;
+  border-radius: 16px;
+  width: 100%;
+  max-height: 80vh;
+  overflow: hidden;
+  transform: scale(0.95);
+  transition: transform 0.2s ease;
+}
+
+.settings-dialog.active .settings-modal-content {
+  transform: scale(1);
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.settings-header h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.settings-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-close:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.settings-content {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: calc(80vh - 80px);
+}
+
+.settings-section {
+  margin-bottom: 24px;
+}
+
+.settings-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6b7280;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.profile-selector {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.profile-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 8px;
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+  outline: none;
+}
+
+.profile-option:hover {
+  border-color: #9ca3af;
+  background: #f9fafb;
+}
+
+.profile-option:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+.profile-option.active {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #667eea10 0%, #764ba210 100%);
+}
+
+.profile-option.active:focus {
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+}
+
+.profile-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.profile-option.active .profile-avatar {
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.profile-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.profile-change-toast {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+/* Mobile adjustments for settings */
+@media (max-width: 600px) {
+  .settings-button {
+    width: 36px;
+    height: 36px;
+  }
+
+  .profile-selector {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .settings-dialog {
+    width: 95%;
+  }
 }
