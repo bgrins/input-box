@@ -48,8 +48,10 @@ body {
 }
 
 /* Enhanced shadow when suggestions are active */
-.input-wrapper:has(.suggestions-dropdown.active) {
+.input-wrapper:has(suggestions-dropdown[active]) {
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 .editor-input {
@@ -159,7 +161,7 @@ body {
 }
 
 /* Remove bottom rounding when suggestions are active */
-.input-wrapper:has(.suggestions-dropdown.active) .controls-bar {
+.input-wrapper:has(suggestions-dropdown[active]) .controls-bar {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -207,7 +209,7 @@ body {
   font-weight: 500;
 }
 
-.suggestions-dropdown {
+suggestions-dropdown {
   position: absolute;
   top: 100%;
   left: 0;
@@ -224,7 +226,7 @@ body {
   border-top: 1px solid #f3f4f6;
 }
 
-.suggestions-dropdown.active {
+suggestions-dropdown[active] {
   display: block;
   animation: slideDown 0.2s ease-out;
 }
@@ -593,20 +595,20 @@ body {
 }
 
 .messages-container::-webkit-scrollbar,
-.suggestions-dropdown::-webkit-scrollbar {
+suggestions-dropdown::-webkit-scrollbar {
   width: 4px;
   height: 4px;
 }
 
 .editor-input .ProseMirror::-webkit-scrollbar-track,
 .messages-container::-webkit-scrollbar-track,
-.suggestions-dropdown::-webkit-scrollbar-track {
+suggestions-dropdown::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .editor-input .ProseMirror::-webkit-scrollbar-thumb,
 .messages-container::-webkit-scrollbar-thumb,
-.suggestions-dropdown::-webkit-scrollbar-thumb {
+suggestions-dropdown::-webkit-scrollbar-thumb {
   background: rgba(156, 163, 175, 0.3);
   border-radius: 10px;
   border: 1px solid transparent;
@@ -615,7 +617,7 @@ body {
 
 .editor-input .ProseMirror::-webkit-scrollbar-thumb:hover,
 .messages-container::-webkit-scrollbar-thumb:hover,
-.suggestions-dropdown::-webkit-scrollbar-thumb:hover {
+suggestions-dropdown::-webkit-scrollbar-thumb:hover {
   background: rgba(156, 163, 175, 0.5);
   background-clip: padding-box;
 }
@@ -629,7 +631,7 @@ body {
 }
 
 .messages-container,
-.suggestions-dropdown {
+suggestions-dropdown {
   scrollbar-width: thin;
   scrollbar-color: rgba(156, 163, 175, 0.3) transparent;
 }
@@ -703,7 +705,7 @@ body {
 }
 
 /* Blurred suggestions when command menu is open */
-.suggestions-dropdown.blurred {
+suggestions-dropdown[blurred] {
   filter: blur(0.8px);
   transition: filter 0.2s;
 }

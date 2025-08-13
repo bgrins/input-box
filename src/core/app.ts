@@ -1,14 +1,20 @@
 import type { TabItem, SuggestionItem } from "../types";
-import { EditorManager, SuggestionsManager, ToastManager } from "../managers";
-import { PillManager, CommandMenu, SettingsManager } from "../ui";
+import { EditorManager, ToastManager } from "../managers";
+import { SettingsManager } from "../ui";
 import { switchProfile } from "../data";
+import { CommandMenuElement } from "../components/command-menu";
+import { SuggestionsDropdown } from "../components/suggestions-dropdown";
+import { PillsContainer } from "../components/pills-container";
+import "../components/command-menu"; // Register the custom element
+import "../components/suggestions-dropdown"; // Register the custom element
+import "../components/pills-container"; // Register the custom element
 
 export class App {
   private editorManager: EditorManager;
-  private suggestionsManager: SuggestionsManager;
+  private suggestionsDropdown: SuggestionsDropdown;
   private toastManager: ToastManager;
-  private pillManager: PillManager;
-  private commandMenu: CommandMenu;
+  private pillsContainer: PillsContainer;
+  private commandMenu: CommandMenuElement;
   private settingsManager: SettingsManager;
 
   // State
@@ -31,10 +37,32 @@ export class App {
     // Initialize managers
     const editorElement = document.querySelector("#editor") as HTMLElement;
     this.editorManager = new EditorManager(editorElement);
-    this.suggestionsManager = new SuggestionsManager("suggestions");
     this.toastManager = new ToastManager("toast-container");
-    this.pillManager = new PillManager("pills-container");
-    this.commandMenu = new CommandMenu(this.editorManager.getEditor());
+
+    // Replace the pills container with our lit component
+    const oldPillsContainer = document.getElementById("pills-container");
+    this.pillsContainer = document.createElement("pills-container");
+    if (oldPillsContainer && oldPillsContainer.parentElement) {
+      oldPillsContainer.parentElement.replaceChild(
+        this.pillsContainer,
+        oldPillsContainer,
+      );
+    }
+
+    // Replace the suggestions div with our lit component
+    const oldSuggestions = document.getElementById("suggestions");
+    this.suggestionsDropdown = document.createElement("suggestions-dropdown");
+    if (oldSuggestions && oldSuggestions.parentElement) {
+      oldSuggestions.parentElement.replaceChild(
+        this.suggestionsDropdown,
+        oldSuggestions,
+      );
+    }
+
+    // Create and append the lit command menu
+    this.commandMenu = document.createElement("command-menu");
+    document.body.appendChild(this.commandMenu);
+
     this.settingsManager = new SettingsManager();
 
     this.setupEventHandlers();
@@ -46,20 +74,20 @@ export class App {
     const savedProfile = this.settingsManager.getCurrentProfile();
     if (savedProfile !== "anna") {
       switchProfile(savedProfile);
-      this.suggestionsManager.refreshSuggestions();
+      this.suggestionsDropdown.refreshData();
     }
 
     this.settingsManager.setOnProfileChange((profile) => {
       switchProfile(profile);
-      this.suggestionsManager.refreshSuggestions();
-      this.suggestionsManager.hide();
+      this.suggestionsDropdown.refreshData();
+      this.suggestionsDropdown.hide();
 
       // Trigger a new search if there's text
       const text = this.editorManager.getText();
       if (text && !text.startsWith("@")) {
         this.lastQuery = text;
         if (text) {
-          this.suggestionsManager.show(text);
+          this.suggestionsDropdown.show(text);
         }
       }
     });
@@ -84,7 +112,7 @@ export class App {
     this.devButton.addEventListener("click", () => this.toggleDevMode());
 
     // Suggestions click handler
-    this.suggestionsManager.setupClickHandler((index) => {
+    this.suggestionsDropdown.setOnSelect((item, index) => {
       this.selectSuggestion(index);
       this.handleSend();
     });
@@ -95,55 +123,56 @@ export class App {
     // Input container click handler
     const inputContainer = document.querySelector(".input-container");
     inputContainer?.addEventListener("click", (e) => {
-      if (!(e.target as HTMLElement).closest(".suggestions-dropdown")) {
+      if (!(e.target as HTMLElement).closest("suggestions-dropdown")) {
         this.editorManager.focus();
       }
     });
   }
 
   private setupCommandMenuHandlers(): void {
-    this.commandMenu.setOnSelect((command, data) => {
-      if (command === "complete-tabs") {
-        this.completeCommand("tabs");
-      } else if (command === "complete-history") {
-        this.completeCommand("history");
-      } else if (command === "complete-bookmarks") {
-        this.completeCommand("bookmarks");
-      } else if ((command === "history" || command === "bookmarks") && data) {
-        const item = data as SuggestionItem;
-        this.pillManager.addPill(item);
-        this.clearCommand();
-        this.isCommandMode = false;
-        this.suggestionsManager.unblur();
-      }
-    });
+    this.commandMenu.setCallbacks(
+      (command, data) => {
+        if (command === "complete-tabs") {
+          this.completeCommand("tabs");
+        } else if (command === "complete-history") {
+          this.completeCommand("history");
+        } else if (command === "complete-bookmarks") {
+          this.completeCommand("bookmarks");
+        } else if ((command === "history" || command === "bookmarks") && data) {
+          const item = data as SuggestionItem;
+          this.pillsContainer.addPill(item);
+          this.clearCommand();
+          this.isCommandMode = false;
+          this.suggestionsDropdown.unblur();
+        }
+      },
+      (command, items, toRemove) => {
+        // Remove unchecked pills
+        if (toRemove && toRemove.length > 0) {
+          toRemove.forEach((id) => {
+            this.pillsContainer.removePill(id);
+          });
+        }
 
-    this.commandMenu.setOnApply((command, items, toRemove) => {
-      // Remove unchecked pills
-      if (toRemove && toRemove.length > 0) {
-        toRemove.forEach((id) => {
-          this.pillManager.removePill(id);
-        });
-      }
+        // Add selected items as pills
+        if (items.length > 0) {
+          items.forEach((item) => {
+            if ("id" in item && !this.pillsContainer.hasPill(item.id)) {
+              this.pillsContainer.addPill(item);
+            } else if (!("id" in item)) {
+              this.pillsContainer.addPill(item);
+            }
+          });
+        }
 
-      // Add selected items as pills
-      if (items.length > 0) {
-        items.forEach((item) => {
-          if ("id" in item && !this.pillManager.hasPill(item.id)) {
-            this.pillManager.addPill(item);
-          } else if (!("id" in item)) {
-            this.pillManager.addPill(item);
-          }
-        });
-      }
-
-      // Clear the command text if we made changes
-      if (items.length > 0 || (toRemove && toRemove.length > 0)) {
-        this.clearCommand();
-        this.isCommandMode = false;
-        this.suggestionsManager.unblur();
-      }
-    });
+        // Clear the command text if we made changes
+        if (items.length > 0 || (toRemove && toRemove.length > 0)) {
+          this.clearCommand();
+          this.isCommandMode = false;
+          this.suggestionsDropdown.unblur();
+        }
+      },
+    );
   }
 
   private handleKeyDown(event: KeyboardEvent): boolean {
@@ -169,32 +198,32 @@ export class App {
       if (event.key === "Escape") {
         this.isCommandMode = false;
         this.commandMenu.hide();
-        this.suggestionsManager.unblur();
+        this.suggestionsDropdown.unblur();
         return true;
       }
       return false;
     }
 
     // Handle arrow keys for URL suggestions
-    if (this.suggestionsManager.isActive()) {
+    if (this.suggestionsDropdown.active) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        this.suggestionsManager.selectNext();
+        this.suggestionsDropdown.selectNext();
         return true;
       } else if (event.key === "ArrowUp") {
         event.preventDefault();
-        this.suggestionsManager.selectPrevious();
+        this.suggestionsDropdown.selectPrevious();
         return true;
       } else if (event.key === "Escape") {
         event.preventDefault();
-        this.suggestionsManager.hide();
+        this.suggestionsDropdown.hide();
         return true;
       } else if (
         event.key === "Tab" &&
-        this.suggestionsManager.getSelectedIndex() >= 0
+        this.suggestionsDropdown.getSelectedIndex() >= 0
       ) {
         event.preventDefault();
-        this.selectSuggestion(this.suggestionsManager.getSelectedIndex());
+        this.selectSuggestion(this.suggestionsDropdown.getSelectedIndex());
         return true;
       }
     }
@@ -203,10 +232,10 @@ export class App {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       if (
-        this.suggestionsManager.isActive() &&
-        this.suggestionsManager.getSelectedIndex() >= 0
+        this.suggestionsDropdown.active &&
+        this.suggestionsDropdown.getSelectedIndex() >= 0
       ) {
-        this.selectSuggestion(this.suggestionsManager.getSelectedIndex());
+        this.selectSuggestion(this.suggestionsDropdown.getSelectedIndex());
         this.handleSend();
       } else {
         this.handleSend();
@@ -239,7 +268,7 @@ export class App {
       if (query === "") {
         this.commandMenu.show(null, [], "");
       } else if (query === "tabs") {
-        const existingPillIds = this.pillManager
+        const existingPillIds = this.pillsContainer
           .getPills()
           .filter((p): p is TabItem => "id" in p)
           .map((p) => p.id);
@@ -258,12 +287,12 @@ export class App {
         }
       }
 
-      this.suggestionsManager.blur();
+      this.suggestionsDropdown.blur();
       return;
     } else {
       this.commandMenu.hide();
       this.isCommandMode = false;
-      this.suggestionsManager.unblur();
+      this.suggestionsDropdown.unblur();
     }
 
     // Clear selected URL when user types
@@ -280,13 +309,13 @@ export class App {
 
     // Show suggestions if not multiline
     if (hasLineBreaks) {
-      this.suggestionsManager.hide();
+      this.suggestionsDropdown.hide();
     } else if (text !== this.lastQuery && !this.isCommandMode) {
       this.lastQuery = text;
       if (text) {
-        this.suggestionsManager.show(text);
+        this.suggestionsDropdown.show(text);
       } else {
-        this.suggestionsManager.hide();
+        this.suggestionsDropdown.hide();
       }
     }
   }
@@ -296,7 +325,7 @@ export class App {
     const hasLineBreaks = this.editorManager.hasLineBreaks();
 
     if (!hasLineBreaks && text && !this.isCommandMode) {
-      this.suggestionsManager.show(text);
+      this.suggestionsDropdown.show(text);
     }
   }
 
@@ -308,7 +337,7 @@ export class App {
       const hoveringOnSuggestions = suggestionsElement?.matches(":hover");
 
       if (!focusInWrapper && !hoveringOnSuggestions) {
-        this.suggestionsManager.hide();
+        this.suggestionsDropdown.hide();
       }
     }, 100);
   }
@@ -316,16 +345,16 @@ export class App {
   private handleGlobalClick(e: MouseEvent): void {
     const target = e.target as HTMLElement;
     const isInputWrapper = target.closest(".input-wrapper");
-    const isSuggestion = target.closest(".suggestions-dropdown");
+    const isSuggestion = target.closest("suggestions-dropdown");
     const isCommandMenu = target.closest(".command-menu");
 
     if (!isInputWrapper && !isSuggestion && !isCommandMenu) {
-      this.suggestionsManager.hide();
+      this.suggestionsDropdown.hide();
       this.commandMenu.hide();
 
       if (this.isCommandMode) {
         this.isCommandMode = false;
-        this.suggestionsManager.unblur();
+        this.suggestionsDropdown.unblur();
       }
     }
   }
@@ -354,7 +383,9 @@ export class App {
   }
 
   private selectSuggestion(index: number): void {
-    const suggestion = this.suggestionsManager.getCurrentSuggestions()[index];
+    // Set the selected index first
+    this.suggestionsDropdown.selectedIndex = index;
+    const suggestion = this.suggestionsDropdown.getSelected();
     if (!suggestion) return;
 
     if (suggestion.type === "search") {
@@ -368,13 +399,13 @@ export class App {
       }
     }
 
-    this.suggestionsManager.hide();
+    this.suggestionsDropdown.hide();
     this.editorManager.focus();
   }
 
   private handleSend(): void {
     const text = this.editorManager.getText();
-    const pills = this.pillManager.getPills();
+    const pills = this.pillsContainer.getPills();
 
     // Don't send if no text and no pills
     if (!text && pills.length === 0) return;
@@ -390,9 +421,9 @@ export class App {
     this.selectedUrl = null;
 
     // Clear pills and editor
-    this.pillManager.clear();
+    this.pillsContainer.clear();
     this.editorManager.clearContent();
-    this.suggestionsManager.hide();
+    this.suggestionsDropdown.hide();
     this.editorManager.focus();
   }
 
