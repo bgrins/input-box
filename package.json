@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:tiptap": "vite build --config vite.config.tiptap.js",
     "preview": "vite preview",
     "prepare": "husky",
     "lint": "eslint .",

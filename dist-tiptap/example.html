@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tiptap Bundle Example</title>
+    <style>
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        max-width: 800px;
+        margin: 50px auto;
+        padding: 20px;
+      }
+      #editor {
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        min-height: 200px;
+        padding: 16px;
+      }
+      .ProseMirror {
+        outline: none;
+      }
+      .ProseMirror p.is-editor-empty:first-child::before {
+        color: #adb5bd;
+        content: attr(data-placeholder);
+        float: left;
+        height: 0;
+        pointer-events: none;
+      }
+      .ProseMirror-focused {
+        border-color: #4c6ef5;
+      }
+      h1 {
+        color: #333;
+      }
+      .controls {
+        margin-bottom: 10px;
+      }
+      button {
+        margin-right: 8px;
+        padding: 8px 12px;
+        background: #f0f0f0;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #e0e0e0;
+      }
+      button.is-active {
+        background: #4c6ef5;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Tiptap Editor - Standalone ESM Bundle</h1>
+
+    <div class="controls">
+      <button onclick="toggleBold()">Bold</button>
+      <button onclick="toggleItalic()">Italic</button>
+      <button onclick="toggleStrike()">Strike</button>
+      <button onclick="toggleCode()">Code</button>
+      <button onclick="addLink()">Add Link</button>
+    </div>
+
+    <div id="editor"></div>
+
+    <p>Content: <span id="content-display"></span></p>
+
+    <script type="module">
+      import {
+        Editor,
+        StarterKit,
+        Link,
+        Placeholder,
+      } from "./tiptap-bundle.js";
+
+      // Create editor instance
+      const editor = new Editor({
+        element: document.querySelector("#editor"),
+        extensions: [
+          StarterKit,
+          Link.configure({
+            openOnClick: false,
+          }),
+          Placeholder.configure({
+            placeholder: "Start typing...",
+          }),
+        ],
+        content:
+          "<p>Hello! This is a Tiptap editor loaded from a standalone ESM bundle without npm!</p>",
+        onUpdate: ({ editor }) => {
+          document.getElementById("content-display").textContent =
+            editor.getHTML();
+        },
+      });
+
+      // Make editor available globally for the button functions
+      window.editor = editor;
+
+      // Button functions
+      window.toggleBold = () => editor.chain().focus().toggleBold().run();
+      window.toggleItalic = () => editor.chain().focus().toggleItalic().run();
+      window.toggleStrike = () => editor.chain().focus().toggleStrike().run();
+      window.toggleCode = () => editor.chain().focus().toggleCode().run();
+      window.addLink = () => {
+        const url = prompt("Enter URL:");
+        if (url) {
+          editor.chain().focus().setLink({ href: url }).run();
+        }
+      };
+    </script>
+  </body>
+</html>

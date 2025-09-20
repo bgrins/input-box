@@ -7,7 +7,7 @@ export default tseslint.config(
   js.configs.recommended,
   prettierConfig,
   {
-    ignores: ["dist/", "node_modules/", ".venv/", "coverage/"],
+    ignores: ["dist/", "node_modules/", ".venv/", "coverage/", "dist-tiptap/"],
   },
   {
     // Test and config files - use basic type checking without project
