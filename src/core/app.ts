@@ -27,12 +27,22 @@ export class App {
   private sendButton: HTMLButtonElement;
   private charCount: HTMLSpanElement;
   private devButton: HTMLButtonElement;
+  private tabsBtn: HTMLButtonElement;
+  private historyBtn: HTMLButtonElement;
+  private bookmarksBtn: HTMLButtonElement;
 
   constructor() {
     // Initialize UI elements
     this.sendButton = document.getElementById("send-btn") as HTMLButtonElement;
     this.charCount = document.getElementById("char-count") as HTMLSpanElement;
     this.devButton = document.getElementById("dev-btn") as HTMLButtonElement;
+    this.tabsBtn = document.getElementById("tabs-btn") as HTMLButtonElement;
+    this.historyBtn = document.getElementById(
+      "history-btn",
+    ) as HTMLButtonElement;
+    this.bookmarksBtn = document.getElementById(
+      "bookmarks-btn",
+    ) as HTMLButtonElement;
 
     // Initialize managers
     const editorElement = document.querySelector("#editor") as HTMLElement;
@@ -111,8 +121,32 @@ export class App {
     this.sendButton.addEventListener("click", () => this.handleSend());
     this.devButton.addEventListener("click", () => this.toggleDevMode());
 
+    // Attachment button handlers
+    this.tabsBtn.addEventListener("click", () => {
+      this.commandMenu.show(
+        "tabs",
+        this.pillsContainer
+          .getPills()
+          .filter((p): p is TabItem => "id" in p)
+          .map((p) => p.id),
+        "",
+        this.tabsBtn,
+      );
+    });
+
+    this.historyBtn.addEventListener("click", () => {
+      this.commandMenu.show("history", [], "", this.historyBtn);
+    });
+
+    this.bookmarksBtn.addEventListener("click", () => {
+      this.commandMenu.show("bookmarks", [], "", this.bookmarksBtn);
+    });
+
+    // Add arrow key navigation for toolbar buttons
+    this.setupToolbarNavigation();
+
     // Suggestions click handler
-    this.suggestionsDropdown.setOnSelect((item, index) => {
+    this.suggestionsDropdown.setOnSelect((_item, index) => {
       this.selectSuggestion(index);
       this.handleSend();
     });
@@ -146,7 +180,7 @@ export class App {
           this.suggestionsDropdown.unblur();
         }
       },
-      (command, items, toRemove) => {
+      (_command, items, toRemove) => {
         // Remove unchecked pills
         if (toRemove && toRemove.length > 0) {
           toRemove.forEach((id) => {
@@ -431,5 +465,45 @@ export class App {
     this.devMode = !this.devMode;
     this.charCount.style.display = this.devMode ? "block" : "none";
     this.devButton.classList.toggle("active", this.devMode);
+  }
+
+  private setupToolbarNavigation(): void {
+    // Get all focusable toolbar buttons in order
+    const toolbarButtons = [
+      this.tabsBtn,
+      this.historyBtn,
+      this.bookmarksBtn,
+      this.devButton,
+      this.sendButton,
+    ];
+
+    // Add keyboard navigation to each button
+    toolbarButtons.forEach((button, index) => {
+      button.addEventListener("keydown", (e) => {
+        let targetIndex = -1;
+
+        switch (e.key) {
+          case "ArrowLeft":
+            e.preventDefault();
+            targetIndex = index - 1;
+            if (targetIndex < 0) targetIndex = toolbarButtons.length - 1;
+            break;
+          case "ArrowRight":
+            e.preventDefault();
+            targetIndex = index + 1;
+            if (targetIndex >= toolbarButtons.length) targetIndex = 0;
+            break;
+          case "ArrowUp":
+            // Move focus to editor
+            e.preventDefault();
+            this.editorManager.focus();
+            return;
+        }
+
+        if (targetIndex >= 0) {
+          toolbarButtons[targetIndex].focus();
+        }
+      });
+    });
   }
 }

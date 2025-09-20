@@ -1,43 +1,8 @@
-/**
- * CommandMenuElement - A lit web component for command selection
- *
- * Key Patterns for Lit Components:
- *
- * 1. Property Management:
- *    - Use @property for public reactive properties (can be set from outside)
- *    - Use @state for private reactive state (internal only)
- *    - Initialize in constructor to avoid class field shadowing issues
- *    - Use `!` assertion for required properties
- *
- * 2. Rendering Optimization:
- *    - Use `repeat` directive for lists with stable keys
- *    - Use `classMap` for conditional classes
- *    - Keep render methods focused and split into sub-renders
- *
- * 3. Event Handling:
- *    - Use arrow functions in templates to preserve `this` context
- *    - Stop propagation when handling keyboard events in shadow DOM
- *    - Use `.checked` syntax for property binding vs `checked` for attributes
- *
- * 4. Styling:
- *    - Use :host for component-level styles
- *    - Use :host([attribute]) for attribute-based styling
- *    - Shadow DOM provides style encapsulation
- *
- * 5. Testing:
- *    - Use @open-wc/testing for web component testing
- *    - Access shadow DOM via element.shadowRoot
- *    - Wait for updateComplete after state changes
- */
-
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-assignment */
 import { LitElement, html, css } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
 import { classMap } from "lit/directives/class-map.js";
-import type { CommandType, TabItem, SuggestionItem } from "../types";
-import { getMockTabs, getRecentHistory, getBookmarks } from "../data";
-import { enableHMR } from "../hmr-setup";
+import type { CommandType, TabItem, SuggestionItem } from "./types";
 
 export type CommandCallback = (
   command: CommandType,
@@ -49,6 +14,12 @@ export type ApplyCallback = (
   data: (TabItem | SuggestionItem)[],
   toRemove: string[],
 ) => void;
+
+export type DataProvider = {
+  getTabs?: () => TabItem[];
+  getHistory?: () => SuggestionItem[];
+  getBookmarks?: () => SuggestionItem[];
+};
 
 @customElement("command-menu")
 export class CommandMenuElement extends LitElement {
@@ -214,6 +185,7 @@ export class CommandMenuElement extends LitElement {
 
   private onSelect?: CommandCallback;
   private onApply?: ApplyCallback;
+  private dataProvider?: DataProvider;
   private triggerElement?: HTMLElement;
 
   constructor() {
@@ -230,6 +202,10 @@ export class CommandMenuElement extends LitElement {
   setCallbacks(onSelect: CommandCallback, onApply: ApplyCallback) {
     this.onSelect = onSelect;
     this.onApply = onApply;
+  }
+
+  setDataProvider(provider: DataProvider) {
+    this.dataProvider = provider;
   }
 
   show(
@@ -272,12 +248,6 @@ export class CommandMenuElement extends LitElement {
   hide() {
     this.active = false;
     this.currentCommand = null;
-
-    // Remove blur from suggestions when hiding
-    const suggestionsDropdown = document.getElementById("suggestions");
-    if (suggestionsDropdown) {
-      suggestionsDropdown.classList.remove("blurred");
-    }
   }
 
   private positionMenu() {
@@ -318,11 +288,17 @@ export class CommandMenuElement extends LitElement {
   }
 
   private getFilteredCommands() {
-    const commands = [
-      { name: "tabs", icon: "📑", description: "Insert open tabs" },
-      { name: "history", icon: "📚", description: "Insert from history" },
-      { name: "bookmarks", icon: "⭐", description: "Insert bookmarks" },
-    ];
+    const commands = [];
+    
+    if (this.dataProvider?.getTabs) {
+      commands.push({ name: "tabs", icon: "📑", description: "Insert open tabs" });
+    }
+    if (this.dataProvider?.getHistory) {
+      commands.push({ name: "history", icon: "📚", description: "Insert from history" });
+    }
+    if (this.dataProvider?.getBookmarks) {
+      commands.push({ name: "bookmarks", icon: "⭐", description: "Insert bookmarks" });
+    }
 
     return this.query
       ? commands.filter((cmd) => cmd.name.startsWith(this.query.toLowerCase()))
@@ -330,12 +306,14 @@ export class CommandMenuElement extends LitElement {
   }
 
   private getItems(): any[] {
-    if (this.currentCommand === "tabs") {
-      return getMockTabs();
-    } else if (this.currentCommand === "history") {
-      return getRecentHistory();
-    } else if (this.currentCommand === "bookmarks") {
-      return getBookmarks();
+    if (!this.dataProvider) return [];
+    
+    if (this.currentCommand === "tabs" && this.dataProvider.getTabs) {
+      return this.dataProvider.getTabs();
+    } else if (this.currentCommand === "history" && this.dataProvider.getHistory) {
+      return this.dataProvider.getHistory();
+    } else if (this.currentCommand === "bookmarks" && this.dataProvider.getBookmarks) {
+      return this.dataProvider.getBookmarks();
     }
     return [];
   }
@@ -375,17 +353,6 @@ export class CommandMenuElement extends LitElement {
           this.onSelect?.("complete-tabs", null);
           this.currentCommand = "tabs";
           this.selectedIndex = 0;
-          // Get existing pills
-          const pillsContainer = document.querySelector("pills-container");
-          if (pillsContainer && pillsContainer.shadowRoot) {
-            const existingIds = Array.from(
-              pillsContainer.shadowRoot.querySelectorAll("[data-pill-id]"),
-            )
-              .map((el) => el.getAttribute("data-pill-id"))
-              .filter((id): id is string => id !== null);
-            this.selectedItems = new Set(existingIds);
-            this.initialPillIds = new Set(existingIds);
-          }
         } else if (
           selected.name === "history" ||
           selected.name === "bookmarks"
@@ -672,12 +639,14 @@ export class CommandMenuElement extends LitElement {
     if (this.currentCommand === "tabs" || this.currentCommand === "history") {
       return html`
         <span class="command-item-icon">
-          <img
-            src=${item.faviconUrl}
-            @error=${(e: Event) => {
-              (e.target as HTMLElement).style.display = "none";
-            }}
-          />
+          ${item.faviconUrl 
+            ? html`<img
+                src=${item.faviconUrl}
+                @error=${(e: Event) => {
+                  (e.target as HTMLElement).style.display = "none";
+                }}
+              />`
+            : html`🌐`}
         </span>
       `;
     } else if (this.currentCommand === "bookmarks") {
@@ -710,9 +679,4 @@ declare global {
   interface HTMLElementTagNameMap {
     "command-menu": CommandMenuElement;
   }
-}
-
-// Enable HMR for this component (tree-shaken in production)
-if (import.meta.hot) {
-  enableHMR(CommandMenuElement, "command-menu");
 }

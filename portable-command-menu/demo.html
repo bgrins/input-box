@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Input Box Component Demo</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      margin: 40px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: white;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .description {
+      color: rgba(255, 255, 255, 0.9);
+      margin-bottom: 30px;
+      text-align: center;
+      font-size: 18px;
+    }
+
+    .demo-section {
+      background: white;
+      padding: 30px;
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      margin-bottom: 30px;
+    }
+
+    .demo-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: #1f2937;
+    }
+
+    .instructions {
+      background: #f7fafc;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+
+    .instructions h3 {
+      margin-top: 0;
+      color: #2c5282;
+      font-size: 16px;
+    }
+
+    .instructions ul {
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+
+    .instructions li {
+      margin: 8px 0;
+      color: #4a5568;
+      line-height: 1.5;
+    }
+
+    .instructions code {
+      background: #e2e8f0;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      color: #2c5282;
+    }
+
+    .output {
+      margin-top: 20px;
+      padding: 15px;
+      background: #1a202c;
+      color: #4fd1c5;
+      border-radius: 8px;
+      min-height: 100px;
+      white-space: pre-wrap;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .config-section {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f7fafc;
+      border-radius: 8px;
+    }
+
+    .config-title {
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #2d3748;
+    }
+
+    .config-buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .config-btn {
+      padding: 8px 16px;
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .config-btn:hover {
+      background: #f7fafc;
+      border-color: #cbd5e0;
+    }
+
+    .config-btn.active {
+      background: #667eea;
+      color: white;
+      border-color: #667eea;
+    }
+
+    /* Make the input box look great */
+    input-box {
+      margin: 20px 0;
+    }
+  </style>
+  <script type="module">
+    import './input-box.js';
+    import { mockDataProvider, getMockHistory, getMockBookmarks } from './mock-data.js';
+
+    const output = document.getElementById('output');
+    const inputBox = document.querySelector('input-box');
+
+    // Enhanced data provider with search suggestions
+    const enhancedProvider = {
+      ...mockDataProvider,
+      getSuggestions: (query) => {
+        const suggestions = [];
+        
+        // Search all history and bookmarks
+        const allItems = [...getMockHistory(), ...getMockBookmarks()];
+        const matches = allItems.filter(item => 
+          item.title.toLowerCase().includes(query.toLowerCase()) ||
+          item.url?.toLowerCase().includes(query.toLowerCase())
+        );
+        
+        suggestions.push(...matches.slice(0, 3));
+        
+        // Add search suggestion
+        suggestions.push({
+          title: `Search for "${query}"`,
+          url: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
+          type: 'search',
+          icon: '🔍'
+        });
+        
+        // Add navigation suggestion if it looks like a URL
+        if (query.includes('.') && !query.includes(' ')) {
+          const url = query.startsWith('http') ? query : `https://${query}`;
+          suggestions.push({
+            title: `Go to ${query}`,
+            url: url,
+            type: 'navigate',
+            icon: '🌐'
+          });
+        }
+        
+        return suggestions.slice(0, 5);
+      }
+    };
+
+    // Configure the input box
+    inputBox.config = {
+      placeholder: "Type @ for commands, or search for URLs...",
+      dataProvider: enhancedProvider,
+      onSubmit: (text, pills) => {
+        const timestamp = new Date().toLocaleTimeString();
+        output.textContent += `[${timestamp}] Submitted:\n`;
+        output.textContent += `  Text: ${text}\n`;
+        if (pills.length > 0) {
+          output.textContent += `  Pills (${pills.length}):\n`;
+          pills.forEach(pill => {
+            output.textContent += `    - ${pill.title}${pill.url ? ` (${pill.url})` : ''}\n`;
+          });
+        }
+        output.textContent += '\n';
+        
+        // Auto-scroll to bottom
+        output.scrollTop = output.scrollHeight;
+      }
+    };
+
+    // Demo controls
+    document.getElementById('toggleDev').addEventListener('click', (e) => {
+      inputBox.devMode = !inputBox.devMode;
+      e.target.classList.toggle('active');
+    });
+
+    document.getElementById('clearOutput').addEventListener('click', () => {
+      output.textContent = 'Output cleared.\n';
+    });
+
+    document.getElementById('addSamplePills').addEventListener('click', () => {
+      // This would need to be implemented through the input box API
+      // For now, just show a message
+      output.textContent += '[Info] Use @ commands or toolbar buttons to add pills\n';
+    });
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>Input Box Component</h1>
+    <p class="description">
+      A complete rich text input with command menu, suggestions, and pill attachments
+    </p>
+
+    <div class="demo-section">
+      <div class="demo-title">Try the Input Box</div>
+      
+      <!-- The main input box component -->
+      <input-box></input-box>
+
+      <div class="instructions">
+        <h3>Features & Shortcuts:</h3>
+        <ul>
+          <li><code>@</code> - Open command menu for tabs, history, and bookmarks</li>
+          <li><code>@tabs</code> - Quick access to tabs selector</li>
+          <li><code>@history</code> - Quick access to history items</li>
+          <li><code>@bookmarks</code> - Quick access to bookmarks</li>
+          <li><code>↑↓</code> - Navigate suggestions or command menu</li>
+          <li><code>Tab</code> - Autocomplete selected suggestion</li>
+          <li><code>Space</code> - Toggle checkbox in multi-select mode</li>
+          <li><code>Enter</code> - Send message</li>
+          <li><code>Shift+Enter</code> - New line</li>
+          <li><code>Escape</code> - Close menus</li>
+        </ul>
+      </div>
+
+      <div class="config-section">
+        <div class="config-title">Demo Controls:</div>
+        <div class="config-buttons">
+          <button id="toggleDev" class="config-btn">Toggle Dev Mode</button>
+          <button id="clearOutput" class="config-btn">Clear Output</button>
+          <button id="addSamplePills" class="config-btn">Info: Sample Pills</button>
+        </div>
+      </div>
+
+      <div class="output" id="output">Ready to receive input...
+</div>
+    </div>
+  </div>
+</body>
+</html>

@@ -11,6 +11,7 @@ import { customElement, state } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
 import type { TabItem, SuggestionItem } from "../types";
 import { getFaviconUrl } from "../data";
+import { enableHMR } from "../hmr-setup";
 
 // Type that can be used as a pill
 type PillItem = TabItem | SuggestionItem;
@@ -20,14 +21,46 @@ export class PillsContainer extends LitElement {
   static override styles = css`
     :host {
       display: none;
-      padding: 8px 16px;
-      gap: 8px;
-      flex-wrap: wrap;
+      position: relative;
+      padding: 12px 16px;
+      min-height: 48px;
+      background: linear-gradient(to bottom, #ffffff, #fafbfc);
       border-top: 1px solid #e5e7eb;
+      border-bottom: 1px solid #e5e7eb;
+      transition: all 0.3s ease;
+      transform-origin: center top;
     }
 
-    :host([has-pills]) {
+    :host([has-pills]),
+    :host([visible]) {
       display: flex;
+    }
+
+    /* Cool spinning opening animation */
+    @keyframes spinOpen {
+      0% {
+        transform: scaleY(0) rotateX(90deg);
+        opacity: 0;
+      }
+      50% {
+        transform: scaleY(0.5) rotateX(45deg);
+        opacity: 0.5;
+      }
+      100% {
+        transform: scaleY(1) rotateX(0deg);
+        opacity: 1;
+      }
+    }
+
+    :host([opening]) {
+      animation: spinOpen 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+
+    .pills-inner {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      flex: 1;
     }
 
     .tab-pill {
@@ -121,11 +154,35 @@ export class PillsContainer extends LitElement {
     this.onRemove = callback;
   }
 
+  show(): void {
+    this.setAttribute("visible", "");
+    this.setAttribute("opening", "");
+    // Remove the opening attribute after animation
+    setTimeout(() => {
+      this.removeAttribute("opening");
+    }, 500);
+  }
+
+  hide(): void {
+    if (this.pills.size === 0) {
+      this.removeAttribute("visible");
+    }
+  }
+
+  isVisible(): boolean {
+    return this.hasAttribute("visible") || this.hasAttribute("has-pills");
+  }
+
   addPill(item: PillItem): void {
     // Generate ID for SuggestionItem if it doesn't have one
     const id = "id" in item ? item.id : `${item.type}-${item.url}`;
 
     if (this.pills.has(id)) return;
+
+    // Show with animation if this is the first pill
+    if (this.pills.size === 0 && !this.hasAttribute("visible")) {
+      this.show();
+    }
 
     this.pills.set(id, item);
     this.updateHasPillsAttribute();
@@ -195,7 +252,7 @@ export class PillsContainer extends LitElement {
   }
 
   private renderIcon(item: PillItem) {
-    const faviconUrl = item.faviconUrl || getFaviconUrl(item.url);
+    const faviconUrl = item.faviconUrl || getFaviconUrl(item.url || "");
 
     return html`
       <img
@@ -218,25 +275,27 @@ export class PillsContainer extends LitElement {
     const pillEntries = Array.from(this.pills.entries());
 
     return html`
-      ${repeat(
-        pillEntries,
-        ([id]) => id,
-        ([id, item], index) => {
-          return html`
-            <div class="tab-pill" data-pill-id=${id} title=${item.url}>
-              ${this.renderIcon(item)}
-              <span class="pill-title">${item.title}</span>
-              <button
-                class="pill-remove"
-                aria-label="Remove ${item.title}"
-                @click=${(e: Event) => this.handleRemoveClick(e, id, index)}
-              >
-                ×
-              </button>
-            </div>
-          `;
-        },
-      )}
+      <div class="pills-inner">
+        ${repeat(
+          pillEntries,
+          ([id]) => id,
+          ([id, item], index) => {
+            return html`
+              <div class="tab-pill" data-pill-id=${id} title=${item.url}>
+                ${this.renderIcon(item)}
+                <span class="pill-title">${item.title}</span>
+                <button
+                  class="pill-remove"
+                  aria-label="Remove ${item.title}"
+                  @click=${(e: Event) => this.handleRemoveClick(e, id, index)}
+                >
+                  ×
+                </button>
+              </div>
+            `;
+          },
+        )}
+      </div>
     `;
   }
 }
@@ -245,4 +304,9 @@ declare global {
   interface HTMLElementTagNameMap {
     "pills-container": PillsContainer;
   }
+}
+
+// Enable HMR for this component (tree-shaken in production)
+if (import.meta.hot) {
+  enableHMR(PillsContainer, "pills-container");
 }

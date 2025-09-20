@@ -12,6 +12,7 @@ import { repeat } from "lit/directives/repeat.js";
 import { classMap } from "lit/directives/class-map.js";
 import type { SuggestionItem } from "../types";
 import { getFaviconUrl, processHistoryData } from "../data";
+import { enableHMR } from "../hmr-setup";
 
 @customElement("suggestions-dropdown")
 export class SuggestionsDropdown extends LitElement {
@@ -368,4 +369,9 @@ declare global {
   interface HTMLElementTagNameMap {
     "suggestions-dropdown": SuggestionsDropdown;
   }
+}
+
+// Enable HMR for this component (tree-shaken in production)
+if (import.meta.hot) {
+  enableHMR(SuggestionsDropdown, "suggestions-dropdown");
 }

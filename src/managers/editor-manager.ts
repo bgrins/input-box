@@ -64,8 +64,11 @@ export class EditorManager {
     this.editor.chain().focus().insertContent(content).run();
   }
 
-  on(event: string, callback: (props: { editor: Editor }) => void): void {
-    this.editor.on(event, callback);
+  on(
+    event: "update" | "focus" | "blur",
+    callback: (props: { editor: Editor }) => void,
+  ): void {
+    this.editor.on(event as any, callback);
   }
 
   setKeyboardHandler(
