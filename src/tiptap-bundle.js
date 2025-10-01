@@ -5,4 +5,6 @@ export { default as FloatingMenu } from "@tiptap/extension-floating-menu";
 export { default as Link } from "@tiptap/extension-link";
 export { default as Placeholder } from "@tiptap/extension-placeholder";
 export { default as CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
+export { default as Mention } from "@tiptap/extension-mention";
+export * as floatingUI from "@floating-ui/dom";
 export { createLowlight } from "lowlight";

@@ -51,13 +51,16 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@floating-ui/dom": "^1.7.4",
     "@tiptap/core": "^3.1.0",
     "@tiptap/extension-bubble-menu": "^3.1.0",
     "@tiptap/extension-code-block-lowlight": "^3.1.0",
     "@tiptap/extension-floating-menu": "^3.1.0",
     "@tiptap/extension-link": "^3.1.0",
+    "@tiptap/extension-mention": "^3.6.2",
     "@tiptap/extension-placeholder": "^3.1.0",
     "@tiptap/starter-kit": "^3.1.0",
+    "@tiptap/suggestion": "^3.6.2",
     "lit": "^3.3.1",
     "lowlight": "^3.3.0"
   }
