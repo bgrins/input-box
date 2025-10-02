@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tiptap Bundle Example</title>
+    <style>
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        max-width: 800px;
+        margin: 50px auto;
+        padding: 20px;
+      }
+      #editor {
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        min-height: 200px;
+        padding: 16px;
+      }
+      .ProseMirror {
+        outline: none;
+      }
+      .ProseMirror p.is-editor-empty:first-child::before {
+        color: #adb5bd;
+        content: attr(data-placeholder);
+        float: left;
+        height: 0;
+        pointer-events: none;
+      }
+      .ProseMirror-focused {
+        border-color: #4c6ef5;
+      }
+      h1 {
+        color: #333;
+      }
+      .controls {
+        margin-bottom: 10px;
+      }
+      button {
+        margin-right: 8px;
+        padding: 8px 12px;
+        background: #f0f0f0;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #e0e0e0;
+      }
+      button.is-active {
+        background: #4c6ef5;
+        color: white;
+      }
+      .mention {
+        background-color: #dee2e6;
+        border-radius: 0.25rem;
+        color: #495057;
+        padding: 0.1rem 0.3rem;
+      }
+      .suggestion-list {
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        max-height: 200px;
+        overflow-y: auto;
+        padding: 4px;
+      }
+      .suggestion-item {
+        padding: 8px;
+        cursor: pointer;
+        border-radius: 4px;
+      }
+      .suggestion-item.is-selected {
+        background: #4c6ef5;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Tiptap Editor - Standalone ESM Bundle</h1>
+
+    <div class="controls">
+      <button onclick="toggleBold()">Bold</button>
+      <button onclick="toggleItalic()">Italic</button>
+      <button onclick="toggleStrike()">Strike</button>
+      <button onclick="toggleCode()">Code</button>
+      <button onclick="addLink()">Add Link</button>
+    </div>
+
+    <div id="editor"></div>
+
+    <p>Content: <span id="content-display"></span></p>
+
+    <script type="module">
+      import {
+        Editor,
+        StarterKit,
+        Placeholder,
+        Mention,
+        floatingUI,
+      } from "./dist-tiptap/tiptap-bundle.js";
+
+      // Sample mention items
+      const mentionItems = [
+        { id: "1", label: "Alice Johnson" },
+        { id: "2", label: "Bob Smith" },
+        { id: "3", label: "Charlie Brown" },
+        { id: "4", label: "Diana Prince" },
+        { id: "5", label: "Eve Martinez" },
+      ];
+
+      // Create editor instance
+      const editor = new Editor({
+        element: document.querySelector("#editor"),
+        extensions: [
+          StarterKit,
+          Placeholder.configure({
+            placeholder: "Start typing... Type @ to mention someone",
+          }),
+          Mention.configure({
+            HTMLAttributes: {
+              class: "mention",
+            },
+            suggestion: {
+              items: ({ query }) => {
+                return mentionItems
+                  .filter((item) =>
+                    item.label.toLowerCase().includes(query.toLowerCase()),
+                  )
+                  .slice(0, 5);
+              },
+              render: () => {
+                let component;
+                let popup;
+
+                return {
+                  onStart: (props) => {
+                    component = document.createElement("div");
+                    component.className = "suggestion-list";
+
+                    props.items.forEach((item, index) => {
+                      const div = document.createElement("div");
+                      div.className = "suggestion-item";
+                      div.textContent = item.label;
+                      div.dataset.index = index;
+                      component.appendChild(div);
+                    });
+
+                    component.addEventListener("click", (e) => {
+                      const item = e.target;
+                      if (item.classList.contains("suggestion-item")) {
+                        const index = parseInt(item.dataset.index);
+                        props.command(props.items[index]);
+                      }
+                    });
+
+                    document.body.appendChild(component);
+
+                    const rect = props.clientRect();
+                    Object.assign(component.style, {
+                      position: "absolute",
+                      left: `${rect.left}px`,
+                      top: `${rect.bottom}px`,
+                    });
+                  },
+
+                  onUpdate(props) {
+                    component.innerHTML = "";
+                    props.items.forEach((item, index) => {
+                      const div = document.createElement("div");
+                      div.className = "suggestion-item";
+                      if (index === props.selectedIndex) {
+                        div.classList.add("is-selected");
+                      }
+                      div.textContent = item.label;
+                      div.dataset.index = index;
+                      component.appendChild(div);
+                    });
+
+                    const rect = props.clientRect();
+                    Object.assign(component.style, {
+                      position: "absolute",
+                      left: `${rect.left}px`,
+                      top: `${rect.bottom}px`,
+                    });
+                  },
+
+                  onKeyDown(props) {
+                    if (props.event.key === "ArrowUp") {
+                      props.event.preventDefault();
+                      const newIndex =
+                        (props.selectedIndex - 1 + props.items.length) %
+                        props.items.length;
+                      const items =
+                        component.querySelectorAll(".suggestion-item");
+                      items[props.selectedIndex]?.classList.remove(
+                        "is-selected",
+                      );
+                      items[newIndex]?.classList.add("is-selected");
+                      return true;
+                    }
+
+                    if (props.event.key === "ArrowDown") {
+                      props.event.preventDefault();
+                      const newIndex =
+                        (props.selectedIndex + 1) % props.items.length;
+                      const items =
+                        component.querySelectorAll(".suggestion-item");
+                      items[props.selectedIndex]?.classList.remove(
+                        "is-selected",
+                      );
+                      items[newIndex]?.classList.add("is-selected");
+                      return true;
+                    }
+
+                    if (props.event.key === "Enter") {
+                      props.event.preventDefault();
+                      const item = props.items[props.selectedIndex];
+                      if (item) {
+                        props.command(item);
+                      }
+                      return true;
+                    }
+
+                    return false;
+                  },
+
+                  onExit() {
+                    if (component) {
+                      component.remove();
+                    }
+                  },
+                };
+              },
+            },
+          }),
+        ],
+        content:
+          "<p>Hello! This is a Tiptap editor loaded from a standalone ESM bundle without npm! Type @ to mention someone.</p>",
+        onUpdate: ({ editor }) => {
+          document.getElementById("content-display").textContent =
+            editor.getHTML();
+        },
+      });
+
+      // Make editor available globally for the button functions
+      window.editor = editor;
+
+      // Button functions
+      window.toggleBold = () => editor.chain().focus().toggleBold().run();
+      window.toggleItalic = () => editor.chain().focus().toggleItalic().run();
+      window.toggleStrike = () => editor.chain().focus().toggleStrike().run();
+      window.toggleCode = () => editor.chain().focus().toggleCode().run();
+      window.addLink = () => {
+        const url = prompt("Enter URL:");
+        if (url) {
+          editor.chain().focus().setLink({ href: url }).run();
+        }
+      };
+    </script>
+  </body>
+</html>
