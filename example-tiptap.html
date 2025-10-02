@@ -113,6 +113,135 @@
         { id: "5", label: "Eve Martinez" },
       ];
 
+      // Simple dropdown component for managing mention suggestions
+      class MentionDropdown {
+        constructor() {
+          this.element = null;
+          this.items = [];
+          this.selectedIndex = 0;
+          this.onSelectCallback = null;
+        }
+
+        create(items, onSelect) {
+          this.items = items;
+          this.selectedIndex = 0;
+          this.onSelectCallback = onSelect;
+
+          this.element = document.createElement("div");
+          this.element.className = "suggestion-list";
+          this.render();
+
+          this.element.addEventListener("click", (e) => {
+            const item = e.target.closest(".suggestion-item");
+            if (item) {
+              const index = parseInt(item.dataset.index);
+              this.selectItem(index);
+            }
+          });
+
+          document.body.appendChild(this.element);
+          return this.element;
+        }
+
+        render() {
+          if (!this.element) return;
+
+          this.element.innerHTML = "";
+          this.items.forEach((item, index) => {
+            const div = document.createElement("div");
+            div.className = "suggestion-item";
+            if (index === this.selectedIndex) {
+              div.classList.add("is-selected");
+            }
+            div.textContent = item.label;
+            div.dataset.index = index;
+            this.element.appendChild(div);
+          });
+        }
+
+        update(items) {
+          this.items = items;
+          this.selectedIndex = Math.min(this.selectedIndex, items.length - 1);
+          this.render();
+        }
+
+        updatePosition(rect) {
+          if (!this.element) return;
+
+          const virtualEl = {
+            getBoundingClientRect: () => rect,
+          };
+
+          floatingUI
+            .computePosition(virtualEl, this.element, {
+              placement: "bottom-start",
+            })
+            .then(({ x, y }) => {
+              Object.assign(this.element.style, {
+                position: "absolute",
+                left: `${x}px`,
+                top: `${y}px`,
+              });
+            });
+        }
+
+        selectNext() {
+          this.selectedIndex = (this.selectedIndex + 1) % this.items.length;
+          this.render();
+          this.scrollToSelected();
+        }
+
+        selectPrevious() {
+          this.selectedIndex =
+            (this.selectedIndex - 1 + this.items.length) % this.items.length;
+          this.render();
+          this.scrollToSelected();
+        }
+
+        selectItem(index = this.selectedIndex) {
+          if (index >= 0 && index < this.items.length) {
+            this.onSelectCallback?.(this.items[index]);
+          }
+        }
+
+        scrollToSelected() {
+          const selected = this.element?.querySelector(".is-selected");
+          if (selected) {
+            selected.scrollIntoView({
+              block: "nearest",
+              behavior: "smooth",
+            });
+          }
+        }
+
+        handleKeyDown(event) {
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            this.selectPrevious();
+            return true;
+          }
+
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            this.selectNext();
+            return true;
+          }
+
+          if (event.key === "Enter") {
+            event.preventDefault();
+            this.selectItem();
+            return true;
+          }
+
+          return false;
+        }
+
+        destroy() {
+          this.element?.remove();
+          this.element = null;
+        }
+      }
+
       // Create editor instance
       const editor = new Editor({
         element: document.querySelector("#editor"),
@@ -134,105 +263,28 @@
                   .slice(0, 5);
               },
               render: () => {
-                let component;
-                let popup;
+                let dropdown;
 
                 return {
                   onStart: (props) => {
-                    component = document.createElement("div");
-                    component.className = "suggestion-list";
-
-                    props.items.forEach((item, index) => {
-                      const div = document.createElement("div");
-                      div.className = "suggestion-item";
-                      div.textContent = item.label;
-                      div.dataset.index = index;
-                      component.appendChild(div);
+                    dropdown = new MentionDropdown();
+                    dropdown.create(props.items, (item) => {
+                      props.command(item);
                     });
-
-                    component.addEventListener("click", (e) => {
-                      const item = e.target;
-                      if (item.classList.contains("suggestion-item")) {
-                        const index = parseInt(item.dataset.index);
-                        props.command(props.items[index]);
-                      }
-                    });
-
-                    document.body.appendChild(component);
-
-                    const rect = props.clientRect();
-                    Object.assign(component.style, {
-                      position: "absolute",
-                      left: `${rect.left}px`,
-                      top: `${rect.bottom}px`,
-                    });
+                    dropdown.updatePosition(props.clientRect());
                   },
 
                   onUpdate(props) {
-                    component.innerHTML = "";
-                    props.items.forEach((item, index) => {
-                      const div = document.createElement("div");
-                      div.className = "suggestion-item";
-                      if (index === props.selectedIndex) {
-                        div.classList.add("is-selected");
-                      }
-                      div.textContent = item.label;
-                      div.dataset.index = index;
-                      component.appendChild(div);
-                    });
-
-                    const rect = props.clientRect();
-                    Object.assign(component.style, {
-                      position: "absolute",
-                      left: `${rect.left}px`,
-                      top: `${rect.bottom}px`,
-                    });
+                    dropdown?.update(props.items);
+                    dropdown?.updatePosition(props.clientRect());
                   },
 
                   onKeyDown(props) {
-                    if (props.event.key === "ArrowUp") {
-                      props.event.preventDefault();
-                      const newIndex =
-                        (props.selectedIndex - 1 + props.items.length) %
-                        props.items.length;
-                      const items =
-                        component.querySelectorAll(".suggestion-item");
-                      items[props.selectedIndex]?.classList.remove(
-                        "is-selected",
-                      );
-                      items[newIndex]?.classList.add("is-selected");
-                      return true;
-                    }
-
-                    if (props.event.key === "ArrowDown") {
-                      props.event.preventDefault();
-                      const newIndex =
-                        (props.selectedIndex + 1) % props.items.length;
-                      const items =
-                        component.querySelectorAll(".suggestion-item");
-                      items[props.selectedIndex]?.classList.remove(
-                        "is-selected",
-                      );
-                      items[newIndex]?.classList.add("is-selected");
-                      return true;
-                    }
-
-                    if (props.event.key === "Enter") {
-                      props.event.preventDefault();
-                      const item = props.items[props.selectedIndex];
-                      if (item) {
-                        props.command(item);
-                      }
-                      return true;
-                    }
-
-                    return false;
+                    return dropdown?.handleKeyDown(props.event) || false;
                   },
 
                   onExit() {
-                    if (component) {
-                      component.remove();
-                    }
+                    dropdown?.destroy();
                   },
                 };
               },
